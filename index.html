@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Neon Space Shooter - 2D Visual Upgrade</title>
+  <title>Neon Space Shooter</title>
   <style>
     body {
       margin: 0;
@@ -17,6 +17,13 @@
     canvas {
       display: block;
     }
+    
+    /* Utility class to hide elements without breaking CSS media queries */
+    .hidden {
+      display: none !important;
+    }
+
+    /* UI Layouts */
     #ui {
       position: absolute;
       top: 20px;
@@ -30,37 +37,86 @@
       text-shadow: 0 0 15px #0ff;
       letter-spacing: 2px;
     }
-    #gameOver {
-      display: none;
+
+    /* Menu & Game Over Shared Styles */
+    .overlay-panel {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       text-align: center;
       z-index: 20;
+      background: rgba(2, 2, 8, 0.85);
+      padding: 40px;
+      border: 2px solid #0ff;
+      border-radius: 10px;
+      box-shadow: 0 0 25px #0ff inset, 0 0 25px #0ff;
+      backdrop-filter: blur(5px);
+      width: 80%;
+      max-width: 400px;
     }
     h1 {
-      font-size: 56px;
+      font-size: 42px;
       text-shadow: 0 0 25px #f0f;
-      margin-bottom: 20px;
-      letter-spacing: 5px;
+      margin-top: 0;
+      margin-bottom: 10px;
+      letter-spacing: 4px;
+      color: #fff;
     }
+    
+    /* Main Menu Specifics */
+    #mainMenu p {
+      color: #0ff;
+      font-size: 16px;
+      margin-bottom: 25px;
+    }
+    .controls-info {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 25px;
+      font-size: 14px;
+      color: #ccc;
+      border: 1px solid #333;
+      text-align: left;
+      line-height: 1.6;
+    }
+    .controls-info strong {
+      color: #ff0;
+    }
+
+    /* Buttons */
     button.neon-btn {
       padding: 12px 30px;
-      font-size: 20px;
+      font-size: 18px;
       background: rgba(0, 255, 255, 0.1);
       color: #0ff;
       border: 2px solid #0ff;
       cursor: pointer;
       text-transform: uppercase;
+      font-weight: bold;
       box-shadow: 0 0 15px #0ff inset, 0 0 15px #0ff;
       transition: 0.3s;
       border-radius: 5px;
+      width: 100%;
+      margin-bottom: 15px;
     }
     button.neon-btn:hover {
       background: #0ff;
       color: #000;
       box-shadow: 0 0 25px #0ff inset, 0 0 25px #0ff;
+    }
+    button.btn-secondary {
+      border-color: #f0f;
+      color: #f0f;
+      background: rgba(255, 0, 255, 0.1);
+      box-shadow: 0 0 15px #f0f inset, 0 0 15px #f0f;
+      margin-bottom: 0;
+    }
+    button.btn-secondary:hover {
+      background: #f0f;
+      color: #000;
+      box-shadow: 0 0 25px #f0f inset, 0 0 25px #f0f;
     }
 
     /* Mobile Controls Styling */
@@ -113,22 +169,39 @@
     }
 
     @media (min-width: 768px) {
-      #mobileControls { display: none; }
+      #mobileControls { display: none !important; }
     }
   </style>
 </head>
 <body>
 
-  <div id="ui">
+  <!-- Main Menu UI -->
+  <div id="mainMenu" class="overlay-panel">
+    <h1>NEON STRIKE</h1>
+    <p>Defend the sector. Destroy all hostiles.</p>
+    
+    <div class="controls-info">
+      <strong>DESKTOP:</strong> Arrow Keys to Move • Spacebar to Fire<br><br>
+      <strong>MOBILE:</strong> Use On-Screen Touch Controls
+    </div>
+
+    <button class="neon-btn" onclick="startGame()">Start Mission</button>
+  </div>
+
+  <!-- In-Game UI -->
+  <div id="ui" class="hidden">
     <div id="scoreDisplay">SCORE: 0</div>
   </div>
 
-  <div id="gameOver">
-    <h1>SYSTEM FAILURE</h1>
-    <button class="neon-btn" onclick="location.reload()">Reboot Sequence</button>
+  <!-- Game Over UI -->
+  <div id="gameOver" class="overlay-panel hidden">
+    <h1 style="font-size: 36px;">SYSTEM FAILURE</h1>
+    <button class="neon-btn" onclick="startGame()">Retry Mission</button>
+    <button class="neon-btn btn-secondary" onclick="showMenu()">Main Menu</button>
   </div>
 
-  <div id="mobileControls">
+  <!-- Mobile Controls -->
+  <div id="mobileControls" class="hidden">
     <div class="control-group">
       <div id="btnLeft" class="touch-btn">◀</div>
       <div id="btnRight" class="touch-btn">▶</div>
@@ -145,9 +218,16 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
+    // Game States: 'menu', 'playing', 'gameover'
+    let gameState = 'menu'; 
     let score = 0;
-    let isGameOver = false;
     const keys = {};
+
+    // UI Elements
+    const elMainMenu = document.getElementById('mainMenu');
+    const elGameOver = document.getElementById('gameOver');
+    const elUI = document.getElementById('ui');
+    const elMobileControls = document.getElementById('mobileControls');
 
     // Generate Parallax Stars
     const stars = [];
@@ -175,7 +255,7 @@
     const enemies = [];
     const particles = [];
 
-    // Controls
+    // Controls bindings
     window.addEventListener('keydown', (e) => keys[e.code] = true);
     window.addEventListener('keyup', (e) => keys[e.code] = false);
 
@@ -187,6 +267,50 @@
     bindTouchControl(document.getElementById('btnRight'), 'ArrowRight');
     bindTouchControl(document.getElementById('btnShoot'), 'Space');
 
+    // State Management Functions
+    function showMenu() {
+      gameState = 'menu';
+      elMainMenu.classList.remove('hidden');
+      elGameOver.classList.add('hidden');
+      elUI.classList.add('hidden');
+      elMobileControls.classList.add('hidden');
+      
+      // Clear entities
+      enemies.length = 0;
+      bullets.length = 0;
+      particles.length = 0;
+    }
+
+    function startGame() {
+      gameState = 'playing';
+      score = 0;
+      document.getElementById('scoreDisplay').innerText = `SCORE: ${score}`;
+      
+      // Reset player position
+      player.x = canvas.width / 2 - player.width / 2;
+      player.y = canvas.height - 120;
+      
+      // Clear entities
+      enemies.length = 0;
+      bullets.length = 0;
+      particles.length = 0;
+      keys['Space'] = false; // Prevent instant shot if spacebar was used to click start
+
+      // Manage UI
+      elMainMenu.classList.add('hidden');
+      elGameOver.classList.add('hidden');
+      elUI.classList.remove('hidden');
+      elMobileControls.classList.remove('hidden');
+    }
+
+    function triggerGameOver() {
+      gameState = 'gameover';
+      elGameOver.classList.remove('hidden');
+      elUI.classList.add('hidden');
+      elMobileControls.classList.add('hidden');
+    }
+
+    // Classes
     class Bullet {
       constructor(x, y) {
         this.x = x;
@@ -197,7 +321,7 @@
         this.color = '#ff0';
       }
       draw() {
-        ctx.fillStyle = '#fff'; // White core
+        ctx.fillStyle = '#fff'; 
         ctx.shadowBlur = 15;
         ctx.shadowColor = this.color;
         ctx.fillRect(this.x, this.y, this.width, this.height);
@@ -224,25 +348,22 @@
         ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
         ctx.rotate(this.rotation);
         
-        // Draw Alien Diamond Ship
         ctx.fillStyle = this.color;
         ctx.shadowBlur = 20;
         ctx.shadowColor = this.color;
         ctx.beginPath();
-        ctx.moveTo(0, -this.height / 2); // Top
-        ctx.lineTo(this.width / 2, 0);   // Right
-        ctx.lineTo(0, this.height / 2);  // Bottom
-        ctx.lineTo(-this.width / 2, 0);  // Left
+        ctx.moveTo(0, -this.height / 2); 
+        ctx.lineTo(this.width / 2, 0);   
+        ctx.lineTo(0, this.height / 2);  
+        ctx.lineTo(-this.width / 2, 0);  
         ctx.closePath();
         ctx.fill();
 
-        // Glowing Core
         ctx.fillStyle = '#fff';
         ctx.shadowBlur = 10;
         ctx.beginPath();
         ctx.arc(0, 0, this.width / 6, 0, Math.PI * 2);
         ctx.fill();
-
         ctx.restore();
       }
       update() {
@@ -278,8 +399,8 @@
       update() {
         this.x += this.speedX;
         this.y += this.speedY;
-        this.speedX *= 0.95; // Friction
-        this.speedY *= 0.95; // Friction
+        this.speedX *= 0.95; 
+        this.speedY *= 0.95; 
         this.life -= this.decay;
       }
     }
@@ -295,30 +416,27 @@
       ctx.save();
       ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
       
-      // Flickering Engine Exhaust
       ctx.fillStyle = Math.random() > 0.5 ? '#f90' : '#f00';
       ctx.shadowBlur = 15;
       ctx.shadowColor = '#f00';
       ctx.beginPath();
       ctx.moveTo(-10, 15);
       ctx.lineTo(10, 15);
-      ctx.lineTo(0, 30 + Math.random() * 15); // Random length flicker
+      ctx.lineTo(0, 30 + Math.random() * 15); 
       ctx.fill();
 
-      // Ship Body
       ctx.fillStyle = player.color;
       ctx.shadowBlur = 20;
       ctx.shadowColor = player.color;
       ctx.beginPath();
-      ctx.moveTo(0, -25); // Nose
-      ctx.lineTo(20, 10); // Right Wing
-      ctx.lineTo(10, 20); // Right Base
-      ctx.lineTo(-10, 20); // Left Base
-      ctx.lineTo(-20, 10); // Left Wing
+      ctx.moveTo(0, -25); 
+      ctx.lineTo(20, 10); 
+      ctx.lineTo(10, 20); 
+      ctx.lineTo(-10, 20); 
+      ctx.lineTo(-20, 10); 
       ctx.closePath();
       ctx.fill();
 
-      // Cockpit
       ctx.fillStyle = '#050510';
       ctx.shadowBlur = 0;
       ctx.beginPath();
@@ -332,16 +450,11 @@
     }
 
     function animate() {
-      if (isGameOver) {
-        document.getElementById('gameOver').style.display = 'block';
-        return;
-      }
-
-      // Draw Deep Space Background with motion blur trail
+      // 1. Draw Background (Runs in all states)
       ctx.fillStyle = 'rgba(2, 2, 8, 0.4)'; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw & Update Starfield
+      // 2. Update & Draw Starfield (Runs in all states)
       stars.forEach(star => {
         star.y += star.speed;
         if (star.y > canvas.height) {
@@ -352,63 +465,59 @@
         ctx.fillRect(star.x, star.y, star.size, star.size);
       });
 
-      // Player Movement
-      if ((keys['ArrowLeft'] || keys['KeyA']) && player.x > 0) player.x -= player.speed;
-      if ((keys['ArrowRight'] || keys['KeyD']) && player.x < canvas.width - player.width) player.x += player.speed;
+      // 3. Gameplay Logic (Only runs if actively playing)
+      if (gameState === 'playing') {
+        if ((keys['ArrowLeft'] || keys['KeyA']) && player.x > 0) player.x -= player.speed;
+        if ((keys['ArrowRight'] || keys['KeyD']) && player.x < canvas.width - player.width) player.x += player.speed;
 
-      // Shooting (Dual Lasers)
-      if (player.cooldown > 0) player.cooldown--;
-      if (keys['Space'] && player.cooldown === 0) {
-        bullets.push(new Bullet(player.x + 5, player.y)); // Left wing laser
-        bullets.push(new Bullet(player.x + player.width - 9, player.y)); // Right wing laser
-        player.cooldown = 12; 
-      }
-
-      drawPlayer();
-
-      // Update Bullets
-      bullets.forEach((bullet, index) => {
-        bullet.update();
-        bullet.draw();
-        if (bullet.y < 0) bullets.splice(index, 1);
-      });
-
-      // Spawn Enemies
-      if (Math.random() < 0.03 + (score * 0.0001)) {
-        enemies.push(new Enemy());
-      }
-
-      // Update Enemies & Collision
-      enemies.forEach((enemy, eIndex) => {
-        enemy.update();
-        enemy.draw();
-
-        // Player Collision (Forgiving hitbox)
-        const hitX = player.x + 10;
-        const hitW = player.width - 20;
-        if (hitX < enemy.x + enemy.width && hitX + hitW > enemy.x &&
-            player.y < enemy.y + enemy.height && player.height + player.y > enemy.y) {
-          createExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
-          isGameOver = true;
+        if (player.cooldown > 0) player.cooldown--;
+        if (keys['Space'] && player.cooldown === 0) {
+          bullets.push(new Bullet(player.x + 5, player.y)); 
+          bullets.push(new Bullet(player.x + player.width - 9, player.y)); 
+          player.cooldown = 12; 
         }
 
-        // Bullet Collision
-        bullets.forEach((bullet, bIndex) => {
-          if (bullet.x < enemy.x + enemy.width && bullet.x + bullet.width > enemy.x &&
-              bullet.y < enemy.y + enemy.height && bullet.height + bullet.y > enemy.y) {
-            
-            createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color);
-            enemies.splice(eIndex, 1);
-            bullets.splice(bIndex, 1);
-            score += 15;
-            document.getElementById('scoreDisplay').innerText = `SCORE: ${score}`;
-          }
+        drawPlayer();
+
+        bullets.forEach((bullet, index) => {
+          bullet.update();
+          bullet.draw();
+          if (bullet.y < 0) bullets.splice(index, 1);
         });
 
-        if (enemy.y > canvas.height) enemies.splice(eIndex, 1);
-      });
+        if (Math.random() < 0.03 + (score * 0.0001)) {
+          enemies.push(new Enemy());
+        }
 
-      // Update Particles
+        enemies.forEach((enemy, eIndex) => {
+          enemy.update();
+          enemy.draw();
+
+          const hitX = player.x + 10;
+          const hitW = player.width - 20;
+          if (hitX < enemy.x + enemy.width && hitX + hitW > enemy.x &&
+              player.y < enemy.y + enemy.height && player.height + player.y > enemy.y) {
+            createExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
+            triggerGameOver();
+          }
+
+          bullets.forEach((bullet, bIndex) => {
+            if (bullet.x < enemy.x + enemy.width && bullet.x + bullet.width > enemy.x &&
+                bullet.y < enemy.y + enemy.height && bullet.height + bullet.y > enemy.y) {
+              
+              createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color);
+              enemies.splice(eIndex, 1);
+              bullets.splice(bIndex, 1);
+              score += 15;
+              document.getElementById('scoreDisplay').innerText = `SCORE: ${score}`;
+            }
+          });
+
+          if (enemy.y > canvas.height) enemies.splice(eIndex, 1);
+        });
+      }
+
+      // 4. Update Particles (Runs in all states so explosions finish animating after death)
       particles.forEach((particle, index) => {
         if (particle.life <= 0) {
           particles.splice(index, 1);
@@ -424,9 +533,10 @@
     window.addEventListener('resize', () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      player.y = canvas.height - 120; 
+      if(gameState !== 'playing') player.y = canvas.height - 120; 
     });
 
+    // Start loop
     animate();
   </script>
 </body>
