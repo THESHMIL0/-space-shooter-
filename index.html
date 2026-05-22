@@ -11,6 +11,9 @@
       background-color: #050510;
       color: #fff;
       font-family: 'Courier New', Courier, monospace;
+      /* Prevents mobile pull-to-refresh and text selection */
+      touch-action: none; 
+      user-select: none;
     }
     canvas {
       display: block;
@@ -39,7 +42,7 @@
       text-shadow: 0 0 20px #f0f;
       margin-bottom: 10px;
     }
-    button {
+    button.neon-btn {
       padding: 10px 20px;
       font-size: 18px;
       background: transparent;
@@ -50,9 +53,65 @@
       box-shadow: 0 0 10px #0ff inset, 0 0 10px #0ff;
       transition: 0.2s;
     }
-    button:hover {
+    button.neon-btn:hover {
       background: #0ff;
       color: #000;
+    }
+
+    /* Mobile Controls Styling */
+    #mobileControls {
+      position: absolute;
+      bottom: 30px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none; /* Let touches pass through the container box */
+      z-index: 10;
+    }
+    .control-group {
+      display: flex;
+      gap: 15px;
+    }
+    .touch-btn {
+      pointer-events: auto; /* Re-enable touches for the buttons */
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: rgba(0, 255, 255, 0.1);
+      border: 2px solid #0ff;
+      color: #0ff;
+      font-size: 24px;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 15px #0ff inset;
+      /* Prevents double-tap zooming on buttons */
+      touch-action: manipulation; 
+    }
+    .touch-btn:active {
+      background: rgba(0, 255, 255, 0.5);
+    }
+    #btnShoot {
+      width: 70px;
+      height: 70px;
+      border-color: #ff0;
+      color: #ff0;
+      background: rgba(255, 255, 0, 0.1);
+      box-shadow: 0 0 15px #ff0 inset;
+      font-size: 16px;
+    }
+    #btnShoot:active {
+      background: rgba(255, 255, 0, 0.5);
+    }
+
+    /* Hide touch controls on larger screens */
+    @media (min-width: 768px) {
+      #mobileControls {
+        display: none;
+      }
     }
   </style>
 </head>
@@ -64,7 +123,16 @@
 
   <div id="gameOver">
     <h1>GAME OVER</h1>
-    <button onclick="location.reload()">Restart</button>
+    <button class="neon-btn" onclick="location.reload()">Restart</button>
+  </div>
+
+  <!-- Mobile Touch Controls -->
+  <div id="mobileControls">
+    <div class="control-group">
+      <div id="btnLeft" class="touch-btn">◀</div>
+      <div id="btnRight" class="touch-btn">▶</div>
+    </div>
+    <div id="btnShoot" class="touch-btn">FIRE</div>
   </div>
 
   <canvas id="gameCanvas"></canvas>
@@ -84,7 +152,7 @@
     // Player Object
     const player = {
       x: canvas.width / 2,
-      y: canvas.height - 80,
+      y: canvas.height - 120, // Moved up slightly to make room for thumbs
       width: 40,
       height: 40,
       speed: 7,
@@ -97,9 +165,30 @@
     const enemies = [];
     const particles = [];
 
-    // Controls
+    // Keyboard Controls
     window.addEventListener('keydown', (e) => keys[e.code] = true);
     window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+    // Touch Controls
+    const btnLeft = document.getElementById('btnLeft');
+    const btnRight = document.getElementById('btnRight');
+    const btnShoot = document.getElementById('btnShoot');
+
+    // Helper function to link touch events to the 'keys' object
+    function bindTouchControl(element, keyString) {
+      element.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // Prevents default browser behaviors like scrolling
+        keys[keyString] = true;
+      });
+      element.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        keys[keyString] = false;
+      });
+    }
+
+    bindTouchControl(btnLeft, 'ArrowLeft');
+    bindTouchControl(btnRight, 'ArrowRight');
+    bindTouchControl(btnShoot, 'Space');
 
     // Classes
     class Bullet {
@@ -116,7 +205,7 @@
         ctx.shadowBlur = 10;
         ctx.shadowColor = this.color;
         ctx.fillRect(this.x, this.y, this.width, this.height);
-        ctx.shadowBlur = 0; // reset
+        ctx.shadowBlur = 0;
       }
       update() {
         this.y -= this.speed;
@@ -266,7 +355,7 @@
     window.addEventListener('resize', () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      player.y = canvas.height - 80;
+      player.y = canvas.height - 120; // Keeps ship above thumbs
     });
 
     animate();
